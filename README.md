@@ -6,7 +6,6 @@ A comprehensive multi-tenant monitoring solution that integrates with Dynatrace 
 For more help, see [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md)
 
 ![Alerts](./images/image_1.png)
-![Login](./images/image_2.png)
 ![Assets](./images/image_3.png)
 
 ## 🎯 Overview
