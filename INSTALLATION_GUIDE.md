@@ -5,7 +5,6 @@
 2. [Dynatrace Token Setup](#dynatrace-token-setup)
 3. [Local Installation (npm)](#local-installation-npm)
 4. [Docker Installation](#docker-installation)
-5. [Kubernetes Deployment](#kubernetes-deployment)
 
 ---
 
@@ -59,31 +58,7 @@ cd dynatrace-multi-tenant-app
 npm install
 ```
 
-### Step 2: Create Environment File
-
-Create a `.env` file in the root directory:
-
-```env
-# Server Configuration
-PORT=5000
-
-# Database
-DATABASE_URL=sqlite:./data/database.sqlite
-
-# JWT Secret
-JWT_SECRET=your-secret-key-here-change-in-production
-
-# Frontend API URL (Vite - only VITE_ prefixed variables are available)
-VITE_API_URL=http://localhost:5000/api
-```
-
-**Important Notes:**
-- **Dynatrace API URL and Token** are configured **per tenant** in the application UI (Tenant Management), not in environment variables
-- **LDAP Configuration** is managed through the application UI (Settings → Authentication)
-- See [Step 5](#step-5-configure-dynatrace-tenants) below for tenant configuration
-
-
-### Step 3: Run the Application
+### Step 2: Run the Application
 
 **Option A: Development Mode (Frontend + Backend)**
 ```bash
@@ -107,11 +82,7 @@ npm run dev:server
 - **Frontend**: http://localhost:5173
 - **Backend API**: http://localhost:5000/api
 
-### Step 5: Create Admin User
-
-```bash
-node create-admin.js
-```
+### Step 5: Admin User Automatically Created
 
 Follow the prompts to create your first admin user.
 
@@ -166,11 +137,7 @@ A `docker-compose.yml` file is included in the project. Run it:
 docker-compose up -d
 ```
 
-### Step 3: Create Admin User in Docker
-
-```bash
-docker-compose exec dynatrace-app node create-admin.js
-```
+### Step 3: Admin User Create automatic
 
 ### Step 4: Configure Dynatrace Tenants
 
@@ -184,90 +151,3 @@ docker-compose exec dynatrace-app node create-admin.js
 5. Click **Create**
 
 **Note:** Dynatrace credentials are stored per tenant in the database, not in environment variables.
-
-
-## Kubernetes Deployment
-
-### Step 1: Deploy to Kubernetes
-
-A complete `k8s-deployment.yaml` file is included in the project. It contains:
-- ConfigMap for configuration
-- Secret for sensitive data (JWT_SECRET)
-- PersistentVolumeClaim for database storage
-- Deployment with 2 replicas
-- Service for networking
-- HorizontalPodAutoscaler for auto-scaling
-
-Deploy it:
-
-```bash
-kubectl apply -f k8s-deployment.yaml
-```
-
-### Step 2: Create Admin User
-
-```bash
-kubectl exec -it deployment/dynatrace-multi-tenant-app -- node create-admin.js
-```
-
-### Step 3: Access the Application
-
-```bash
-# Get the external IP
-kubectl get svc dynatrace-multi-tenant-app
-
-# Access via: http://<EXTERNAL-IP>
-```
-
-### Step 4: Configure Dynatrace Tenants
-
-1. Log in with your admin credentials
-2. Go to **Tenant Management**
-3. Click **Create Tenant** and fill in:
-   - **Tenant Name**: Your tenant name
-   - **Dynatrace API URL**: `https://{environment-id}.live.dynatrace.com/api/v2`
-   - **Dynatrace API Token**: Your API token
-4. Click **Create**
-
-**Note:** Dynatrace credentials are stored per tenant in the database, not in environment variables.
-
----
-
-## Troubleshooting
-
-### Connection Issues
-- Verify Dynatrace API token is valid
-- Check firewall rules for API access
-- Ensure environment ID is correct
-
-### Database Issues
-- Delete `data/database.sqlite` and restart
-- Check file permissions in data directory
-
-### Docker Issues
-```bash
-# View logs
-docker-compose logs -f app
-
-# Rebuild image
-docker-compose build --no-cache
-```
-
-### Kubernetes Issues
-```bash
-# Check pod logs
-kubectl logs -f deployment/dynatrace-multi-tenant-app
-
-# Describe pod for events
-kubectl describe pod <pod-name>
-
-# Check resource usage
-kubectl top pods
-```
-
----
-
-## Support
-
-For issues or questions, please refer to the main README.md or contact the development team.
-
