@@ -1,6 +1,9 @@
-# Dynatrace Multi-Tenant Monitoring App – Centralized Alarm & Asset Management
-A centralized Dynatrace monitoring tool for managing alarms, assets, and tenants in one unified dashboard with real-time sync and reporting.
-A comprehensive multi-tenant monitoring solution that integrates with Dynatrace to provide centralized alarm and asset management across multiple tenants.
+# 🧠 Dynatrace Multi-Tenant Monitoring App – Centralized Alarm & Asset Management
+
+A **centralized monitoring solution for Dynatrace** that enables organizations to manage **multiple tenants, alarms, and assets** in one unified platform.  
+Built for **DevOps teams and IT administrators** who need real-time visibility, alert synchronization, and comprehensive asset tracking across multiple Dynatrace environments.
+
+---
 
 ## 🚀 Quick Start
 For more help, see [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md)
