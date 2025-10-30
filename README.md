@@ -1,12 +1,12 @@
-# Dynatrace Multi-Tenant Monitoring Application
-
+# Dynatrace Multi-Tenant Monitoring App – Centralized Alarm & Asset Management
+A centralized Dynatrace monitoring tool for managing alarms, assets, and tenants in one unified dashboard with real-time sync and reporting.
 A comprehensive multi-tenant monitoring solution that integrates with Dynatrace to provide centralized alarm and asset management across multiple tenants.
 
 ## 🚀 Quick Start
 For more help, see [INSTALLATION_GUIDE.md](./INSTALLATION_GUIDE.md)
 
-![Alerts](./images/image_1.png)
-![Assets](./images/image_3.png)
+![Dynatrace Alarm Monitoring Dashboard](./images/dynatrace-alarm-dashboard.png)
+![Multi-Tenant Asset Management Interface](./images/multi-tenant-asset-view.png)
 
 ## 🎯 Overview
 
@@ -77,7 +77,6 @@ This application enables organizations to:
 
 **Deployment:**
 - Docker containerization
-- Kubernetes orchestration
 - Docker Compose for local development
 
 ## 📋 System Requirements
@@ -87,4 +86,13 @@ This application enables organizations to:
 - Dynatrace account with API access
 - 2GB RAM minimum
 - 5GB storage for database
+
+
+## 🔗 Useful Links
+- [Dynatrace API Documentation](https://www.dynatrace.com/support/help/)
+- [Official Docker Image](#)
+- [Project Wiki](#)
+
+## 🏷️ Keywords
+Dynatrace monitoring, multi-tenant monitoring, centralized dashboard, alarm management, asset management, Node.js monitoring tool
 
