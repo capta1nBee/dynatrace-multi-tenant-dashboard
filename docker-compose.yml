@@ -7,7 +7,6 @@ services:
       dockerfile: Dockerfile
     container_name: dynatrace-multi-tenant-app
     ports:
-      - "5000:5000"
       - "5173:5173"
     volumes:
       - ./data:/app/data
