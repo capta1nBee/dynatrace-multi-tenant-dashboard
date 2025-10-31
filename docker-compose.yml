@@ -8,6 +8,8 @@ services:
     container_name: dynatrace-multi-tenant-app
     ports:
       - "5173:5173"
+    env_file:
+      - .env
     volumes:
       - ./data:/app/data
     restart: unless-stopped
