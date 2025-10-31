@@ -28,7 +28,6 @@ COPY --from=builder /app/dist ./dist
 COPY server ./server
 
 # Expose ports for backend (5000) and frontend (5173)
-EXPOSE 5000
 EXPOSE 5173
 
 # Health check for backend API
