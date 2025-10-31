@@ -9,25 +9,9 @@ services:
     ports:
       - "5000:5000"
       - "5173:5173"
-    environment:
-      # Server Configuration
-      PORT: 5000
-
-      # Database
-      DATABASE_URL: sqlite:./data/database.sqlite
-
-      # JWT Secret
-      JWT_SECRET: ${JWT_SECRET:-change-me-in-production}
-
-      # Frontend API URL (Vite - only VITE_ prefixed variables are available)
-      VITE_API_URL: ${VITE_API_URL:-http://localhost:5000/api}
-    
     volumes:
       - ./data:/app/data
-      - /app/node_modules
-    
     restart: unless-stopped
-    
     healthcheck:
       test: ["CMD", "node", "-e", "require('http').get('http://localhost:5000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"]
       interval: 30s
@@ -35,14 +19,4 @@ services:
       retries: 3
       start_period: 40s
     
-    networks:
-      - dynatrace-network
-
-networks:
-  dynatrace-network:
-    driver: bridge
-
-volumes:
-  data:
-    driver: local
 
