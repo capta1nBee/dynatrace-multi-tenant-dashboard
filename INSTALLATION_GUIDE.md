@@ -56,6 +56,15 @@ cd dynatrace-multi-tenant-app
 
 # Install dependencies
 npm install
+
+CHANGES .env file
+
+PORT=5000 --> SERVER PORT
+JWT_SECRET=your_jwt_secret_key_here_change_in_production --> JWT SECRET
+JWT_EXPIRE=7d
+
+VITE_API_URL=http://10.10.10.10:5173/api --> http://FRONTEND_IP:FRONTEND_PORT/api
+
 ```
 
 ### Step 2: Run the Application
@@ -126,6 +135,15 @@ To enable LDAP or OIDC authentication:
 A `Dockerfile` is included in the project. Build the image:
 
 ```bash
+
+CHANGES .env file
+
+PORT=5000 --> SERVER PORT
+JWT_SECRET=your_jwt_secret_key_here_change_in_production --> JWT SECRET
+JWT_EXPIRE=7d
+
+VITE_API_URL=http://10.10.10.10:5173/api --> http://FRONTEND_IP:FRONTEND_PORT/api
+
 docker build -t dynatrace-multi-tenant-app:latest .
 ```
 
