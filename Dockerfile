@@ -1,53 +1,42 @@
-# Build stage
+# ---------- Build Stage ----------
 FROM node:18-alpine AS builder
 
 WORKDIR /app
 
-# Copy package files
+# Copy package files and install dependencies
 COPY package*.json ./
-
-# Install dependencies
 RUN npm ci
 
-# Copy source code
+# Copy source code and build the frontend
 COPY . .
-
-# Build frontend
 RUN npm run build
 
-# Production stage
+# ---------- Production Stage ----------
 FROM node:18-alpine
 
 WORKDIR /app
 
-# Install dumb-init for proper signal handling
-RUN apk add --no-cache dumb-init
+# Install dumb-init for proper signal handling and serve for static hosting
+RUN apk add --no-cache dumb-init && npm install -g serve
 
-# Copy package files
+# Copy package files and install production dependencies only
 COPY package*.json ./
-
-# Install production dependencies only
 RUN npm ci --only=production
 
-# Copy built frontend from builder
+# Copy built frontend and server code from builder
 COPY --from=builder /app/dist ./dist
-
-# Copy server code
 COPY server ./server
 
-# Create data directory
-RUN mkdir -p data
+# Expose ports for backend (5000) and frontend (5173)
+EXPOSE 5000
+EXPOSE 5173
 
-# Expose ports
-EXPOSE 5000 5173
-
-# Health check
+# Health check for backend API
 HEALTHCHECK --interval=30s --timeout=10s --start-period=40s --retries=3 \
   CMD node -e "require('http').get('http://localhost:5000/api/health', (r) => {if (r.statusCode !== 200) throw new Error(r.statusCode)})"
 
-# Use dumb-init to handle signals properly
-ENTRYPOINT ["/sbin/dumb-init", "--"]
+# Use dumb-init as the entrypoint for proper signal handling
+ENTRYPOINT ["dumb-init", "--"]
 
-# Start the application
-CMD ["node", "server/index.js"]
-
+# Run both backend and frontend inside the same container
+CMD ["sh", "-c", "node server/index.js & serve -s dist -l 5173 && wait"]
