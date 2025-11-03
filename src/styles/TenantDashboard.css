@@ -14,13 +14,13 @@
 }
 
 .auth-required h2 {
-  font-size: 24px;
+  font-size: 20px;
   margin-bottom: 15px;
   color: #667eea;
 }
 
 .auth-required p {
-  font-size: 16px;
+  font-size: 14px;
   color: #666;
 }
 
@@ -29,7 +29,7 @@
   align-items: center;
   gap: 16px;
   margin-bottom: 24px;
-  padding: 18px 24px;
+  padding: 16px 22px;
   background: linear-gradient(135deg, #ffffff 0%, #f5f7ff 100%);
   border-radius: 12px;
   border: 1px solid rgba(102, 126, 234, 0.15);
@@ -39,7 +39,7 @@
 .tenant-selector label {
   font-weight: 600;
   color: #333;
-  font-size: 15px;
+  font-size: 14px;
 }
 
 .tenant-selector select {
@@ -213,13 +213,13 @@
 }
 
 .stat-value {
-  font-size: 32px;
+  font-size: 28px;
   font-weight: 700;
   margin-bottom: 10px;
 }
 
 .stat-label {
-  font-size: 12px;
+  font-size: 11px;
   opacity: 0.9;
   text-transform: uppercase;
   letter-spacing: 0.5px;
@@ -242,7 +242,7 @@
 .details-section h3 {
   margin: 0 0 15px 0;
   color: #333;
-  font-size: 16px;
+  font-size: 15px;
 }
 
 .alarms-list,
@@ -322,7 +322,7 @@
   text-align: center;
   padding: 30px;
   color: #999;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .charts-section {
@@ -343,7 +343,7 @@
 .chart-container h3 {
   margin: 0 0 20px 0;
   color: #333;
-  font-size: 16px;
+  font-size: 15px;
   text-align: center;
 }
 

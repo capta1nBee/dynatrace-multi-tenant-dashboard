@@ -54,16 +54,9 @@ export default function TenantManagement() {
       if (editingId) {
         await tenantsAPI.update(editingId, submitData);
       } else {
-        // New tenant created - trigger asset sync
+        // New tenant created - backend will auto-sync only this tenant
         await tenantsAPI.create(submitData);
-        console.log('[TENANT MANAGEMENT] New tenant created, triggering asset sync...');
-        try {
-          await assetsAPI.sync();
-          console.log('[TENANT MANAGEMENT] Asset sync completed for new tenant');
-        } catch (syncError) {
-          console.warn('[TENANT MANAGEMENT] Asset sync warning:', syncError.message);
-          // Don't fail tenant creation if sync fails
-        }
+        console.log('[TENANT MANAGEMENT] New tenant created, backend will auto-sync assets for this tenant only');
       }
       setFormData({
         name: '',

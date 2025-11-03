@@ -281,7 +281,7 @@ export default function Dashboard({ user, onLogout, branding, authConfig }) {
         <AlarmsList alarms={alarms} stats={alarmStats} onRefresh={loadAlarmData} user={user} onAlarmCountsChange={setAlarmCounts} />
       )}
       {activeTab === 'assets' && user && (
-        <AssetsList assets={assets} stats={assetStats} onRefresh={loadData} isSyncing={isSyncing} lastSyncTime={lastSyncTime} onManualSync={handleAssetSync} />
+        <AssetsList assets={assets} stats={assetStats} onRefresh={loadData} isSyncing={isSyncing} lastSyncTime={lastSyncTime} onManualSync={isAdmin ? handleAssetSync : null} />
       )}
       {activeTab === 'tenant-dashboard' && user && (
         <TenantDashboard user={user} />

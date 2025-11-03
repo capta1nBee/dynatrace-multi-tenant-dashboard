@@ -18,7 +18,7 @@
 .branding-header h2 {
   margin: 0 0 10px 0;
   color: #333;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   -webkit-background-clip: text;
@@ -29,7 +29,7 @@
 .branding-header p {
   margin: 0;
   color: #666;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .branding-form {
@@ -54,7 +54,7 @@
 .form-section h3 {
   margin: 0 0 20px 0;
   color: #333;
-  font-size: 16px;
+  font-size: 15px;
   font-weight: 700;
   border-bottom: 2px solid transparent;
   border-image: linear-gradient(135deg, #667eea 0%, #764ba2 100%) 1;
@@ -199,17 +199,17 @@
 
 .preview-box h1 {
   margin: 0;
-  font-size: 28px;
+  font-size: 22px;
   font-weight: 700;
 }
 
 .submit-btn {
-  padding: 14px 32px;
+  padding: 12px 28px;
   background: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
   color: white;
   border: none;
   border-radius: 8px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: all 0.3s ease;

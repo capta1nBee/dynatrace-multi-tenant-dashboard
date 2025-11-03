@@ -16,13 +16,13 @@
 .config-header h2 {
   margin: 0 0 10px 0;
   color: #333;
-  font-size: 24px;
+  font-size: 20px;
 }
 
 .config-header p {
   margin: 0;
   color: #666;
-  font-size: 14px;
+  font-size: 13px;
 }
 
 .auth-config-form {
@@ -41,7 +41,7 @@
 .form-section h3 {
   margin: 0 0 20px 0;
   color: #333;
-  font-size: 16px;
+  font-size: 15px;
   border-bottom: 1px solid #ddd;
   padding-bottom: 10px;
 }
@@ -125,12 +125,12 @@
 }
 
 .submit-btn {
-  padding: 12px 24px;
+  padding: 10px 22px;
   background-color: #667eea;
   color: white;
   border: none;
   border-radius: 4px;
-  font-size: 16px;
+  font-size: 14px;
   font-weight: 600;
   cursor: pointer;
   transition: background-color 0.3s;
