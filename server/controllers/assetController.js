@@ -23,9 +23,11 @@ const normalizeEntityType = (entityType) => {
 
 exports.syncAssets = async (req, res) => {
   try {
-    console.log('[SYNC ASSETS] Starting asset sync...');
+    console.log('[SYNC ASSETS] ========================================');
+    console.log('[SYNC ASSETS] SYNCING ALL TENANTS (Manual or Scheduled)');
+    console.log('[SYNC ASSETS] ========================================');
     const tenants = await Tenant.findAll({ where: { isActive: true } });
-    console.log(`[SYNC ASSETS] Found ${tenants.length} active tenants`);
+    console.log(`[SYNC ASSETS] Found ${tenants.length} active tenants to sync`);
     let totalAssets = 0;
 
     for (const tenant of tenants) {

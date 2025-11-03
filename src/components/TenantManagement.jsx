@@ -1,6 +1,5 @@
 import { useState, useEffect } from 'react';
 import { tenantsAPI } from '../api/tenants';
-import { assetsAPI } from '../api/assets';
 import '../styles/TenantManagement.css';
 
 export default function TenantManagement() {

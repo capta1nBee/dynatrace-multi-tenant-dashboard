@@ -2,7 +2,6 @@ const Tenant = require('../models/Tenant');
 const Alarm = require('../models/Alarm');
 const Asset = require('../models/Asset');
 const DynatraceClient = require('../utils/dynatraceClient');
-const assetController = require('./assetController');
 
 exports.createTenant = async (req, res) => {
   try {
@@ -31,28 +30,33 @@ exports.createTenant = async (req, res) => {
     });
 
     console.log(`[CREATE TENANT] Tenant created successfully with ID: ${tenant.id}`);
+    console.log(`[CREATE TENANT] ========================================`);
+    console.log(`[CREATE TENANT] IMPORTANT: Syncing ONLY the new tenant: ${tenant.name} (ID: ${tenant.id})`);
+    console.log(`[CREATE TENANT] NOT syncing other tenants!`);
+    console.log(`[CREATE TENANT] ========================================`);
 
-    // Auto sync assets for the new tenant
-    console.log(`[CREATE TENANT] Starting auto sync for new tenant: ${tenant.name}`);
+    // Auto sync assets for ONLY the new tenant
     try {
       const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
+      console.log(`[CREATE TENANT] Fetching entities for ONLY tenant: ${tenant.name}`);
       const entities = await client.getEntities();
 
       if (entities && entities.entities) {
-        console.log(`[CREATE TENANT] Found ${entities.entities.length} entities for tenant ${tenant.name}`);
+        console.log(`[CREATE TENANT] Found ${entities.entities.length} entities for NEW tenant ${tenant.name} (ID: ${tenant.id})`);
 
         for (const entity of entities.entities) {
           await Asset.upsert({
             dynatraceEntityId: entity.entityId,
-            tenantId: tenant.id,
-            tenantName: tenant.name,
+            tenantId: tenant.id,  // ONLY this tenant's ID
+            tenantName: tenant.name,  // ONLY this tenant's name
             name: entity.displayName || entity.entityId,
             type: entity.entityType || 'UNKNOWN',
             status: 'ACTIVE',
             tags: entity.tags || [],
           });
         }
-        console.log(`[CREATE TENANT] Assets synced for tenant: ${tenant.name}`);
+        console.log(`[CREATE TENANT] ✓ Assets synced successfully for NEW tenant ONLY: ${tenant.name} (ID: ${tenant.id})`);
+        console.log(`[CREATE TENANT] ✓ Total ${entities.entities.length} assets saved for this tenant`);
       }
     } catch (syncError) {
       console.warn(`[CREATE TENANT] Warning: Could not auto sync assets for tenant ${tenant.name}:`, syncError.message);
