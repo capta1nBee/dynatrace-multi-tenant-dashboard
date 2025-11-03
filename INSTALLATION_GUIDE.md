@@ -13,7 +13,6 @@
 - **Node.js** 16+ and npm 8+
 - **Dynatrace Account** with API access
 - **Docker** (for Docker/Kubernetes deployment)
-- **kubectl** (for Kubernetes deployment)
 
 ---
 

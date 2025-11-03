@@ -175,7 +175,7 @@ const scheduleAssetSync = () => {
   console.log('[SCHEDULED JOB] 30-minute asset sync job scheduled');
 };
 
-const PORT = process.env.PORT || 5000;
+const PORT = process.env.VITE_SERVER_PORT || 5000;
 
 // Start server
 initDB().then(() => {
@@ -185,8 +185,9 @@ initDB().then(() => {
   // Schedule 30-minute asset sync
   scheduleAssetSync();
 
-  app.listen(PORT, () => {
+  app.listen(PORT, '0.0.0.0', () => {
     console.log(`Server running on port ${PORT}`);
   });
+
 });
 

@@ -2,9 +2,6 @@ node_modules
 npm-debug.log
 .git
 .gitignore
-.env
-.env.local
-.env.*.local
 dist
 build
 .DS_Store
@@ -23,7 +20,6 @@ out
 .cache
 .turbo
 .vercel
-.env.example
 README.md
 INSTALLATION_GUIDE.md
 QUICK_START.md
@@ -38,4 +34,3 @@ Dockerfile
 docker-compose.yml
 .dockerignore
 k8s-deployment.yaml
-
