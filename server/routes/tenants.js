@@ -12,6 +12,9 @@ router.put('/:id', authMiddleware, adminMiddleware, tenantController.updateTenan
 // Disable tenant (mark as inactive)
 router.patch('/:id/disable', authMiddleware, adminMiddleware, tenantController.disableTenant);
 
+// Enable tenant (mark as active)
+router.patch('/:id/enable', authMiddleware, adminMiddleware, tenantController.enableTenant);
+
 // Permanently delete tenant (cascade delete alarms and assets)
 router.delete('/:id', authMiddleware, adminMiddleware, tenantController.deleteTenant);
 

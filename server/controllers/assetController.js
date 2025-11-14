@@ -30,8 +30,9 @@ exports.syncAssets = async (req, res) => {
     let totalAssets = 0;
 
     for (const tenant of tenants) {
+      let tenantAssetCount = 0;
       try {
-        logger.debug('SYNC_ASSETS', `Syncing assets for tenant: ${tenant.name} (ID: ${tenant.id})`);
+        logger.info('SYNC_ASSETS', `▶ Starting sync for tenant: ${tenant.name}`);
 
         const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
 
@@ -71,6 +72,7 @@ exports.syncAssets = async (req, res) => {
                   },
                 });
                 totalAssets++;
+                tenantAssetCount++;
               }
             } else {
               logger.debug('SYNC_ASSETS', `No entities found for type ${entityType}`);
@@ -81,16 +83,101 @@ exports.syncAssets = async (req, res) => {
         }
 
         await tenant.update({ lastSyncTime: new Date() });
-        logger.debug('SYNC_ASSETS', `Updated lastSyncTime for tenant ${tenant.name}`);
+        logger.info('SYNC_ASSETS', `✓ Completed sync for tenant: ${tenant.name} | Assets written: ${tenantAssetCount}`);
       } catch (error) {
         logger.error('SYNC_ASSETS', `Error syncing assets for tenant ${tenant.name}: ${error.message}`, error);
       }
     }
 
-    logger.info('SYNC_ASSETS', `Sync completed. Total assets synced: ${totalAssets}`);
+    logger.info('SYNC_ASSETS', `✓ Sync completed. Total assets written to database: ${totalAssets}`);
     res.json({ message: 'Assets synced', totalAssets });
   } catch (error) {
     logger.error('SYNC_ASSETS', `Fatal error during asset sync: ${error.message}`, error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Sync assets for a specific tenant (manual sync)
+exports.syncTenant = async (req, res) => {
+  try {
+    const { tenantId } = req.params;
+    logger.info('SYNC_TENANT', `▶ Starting manual sync for tenant ID: ${tenantId}`);
+
+    const tenant = await Tenant.findByPk(tenantId);
+    if (!tenant) {
+      logger.error('SYNC_TENANT', `Tenant not found with ID: ${tenantId}`);
+      return res.status(404).json({ message: 'Tenant not found' });
+    }
+
+    if (!tenant.isActive) {
+      logger.warn('SYNC_TENANT', `Cannot sync inactive tenant: ${tenant.name}`);
+      return res.status(400).json({ message: 'Cannot sync inactive tenant. Please enable it first.' });
+    }
+
+    let tenantAssetCount = 0;
+    try {
+      logger.info('SYNC_TENANT', `▶ Starting sync for tenant: ${tenant.name}`);
+
+      const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
+
+      // Fetch all entity types first
+      logger.debug('SYNC_TENANT', `Fetching entity types for tenant ${tenant.name}`);
+      const entityTypesResponse = await client.getEntityTypes();
+      const entityTypes = entityTypesResponse.types.map(t => t.type);
+      logger.debug('SYNC_TENANT', `Found ${entityTypes.length} entity types`);
+
+      // Sync entities for each type
+      for (const entityType of entityTypes) {
+        try {
+          logger.debug('SYNC_TENANT', `Syncing entities of type: ${entityType}`);
+          const entitiesResponse = await client.getEntitiesByType(entityType);
+
+          if (entitiesResponse && entitiesResponse.length > 0) {
+            logger.debug('SYNC_TENANT', `Found ${entitiesResponse.length} entities of type ${entityType}`);
+
+            for (const entity of entitiesResponse) {
+              const properties = entity.properties || {};
+
+              await Asset.upsert({
+                dynatraceEntityId: entity.entityId,
+                tenantId: tenant.id,
+                tenantName: tenant.name,
+                name: entity.displayName,
+                type: normalizeEntityType(entity.type),
+                status: entity.healthStatus || 'UNKNOWN',
+                tags: entity.tags || [],
+                properties: properties,
+                lastSeen: new Date(),
+                metadata: {
+                  icon: entity.icon,
+                  managementZones: entity.managementZones,
+                  originalType: entity.type,
+                },
+              });
+              tenantAssetCount++;
+            }
+          } else {
+            logger.debug('SYNC_TENANT', `No entities found for type ${entityType}`);
+          }
+        } catch (error) {
+          logger.warn('SYNC_TENANT', `Error syncing entities of type ${entityType}: ${error.message}`);
+        }
+      }
+
+      await tenant.update({ lastSyncTime: new Date() });
+      logger.info('SYNC_TENANT', `✓ Completed sync for tenant: ${tenant.name} | Assets written: ${tenantAssetCount}`);
+      res.json({ 
+        message: 'Tenant assets synced successfully', 
+        tenantId: tenant.id,
+        tenantName: tenant.name,
+        assetsWritten: tenantAssetCount 
+      });
+    } catch (error) {
+      logger.error('SYNC_TENANT', `Error syncing assets for tenant ${tenant.name}: ${error.message}`, error);
+      res.status(500).json({ message: error.message });
+    }
+  } catch (error) {
+    logger.error('SYNC_TENANT', `Fatal error during tenant sync: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };

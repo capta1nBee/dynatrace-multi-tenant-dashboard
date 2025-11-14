@@ -123,10 +123,29 @@ exports.disableTenant = async (req, res) => {
     }
     logger.debug('DISABLE_TENANT', `Marking tenant as inactive: ${tenant.name}`);
     await tenant.update({ isActive: false });
-    logger.debug('DISABLE_TENANT', `Tenant marked as inactive: ${tenant.name}`);
+    logger.info('DISABLE_TENANT', `Tenant marked as inactive: ${tenant.name}`);
     res.json({ message: 'Tenant disabled successfully', tenantId: tenant.id, tenantName: tenant.name });
   } catch (error) {
     logger.error('DISABLE_TENANT', `Error disabling tenant: ${error.message}`, error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Enable/Aktifleştir - Tenant'ı aktif yap
+exports.enableTenant = async (req, res) => {
+  try {
+    logger.debug('ENABLE_TENANT', `Enabling tenant with ID: ${req.params.id}`);
+    const tenant = await Tenant.findByPk(req.params.id);
+    if (!tenant) {
+      logger.debug('ENABLE_TENANT', `Tenant not found with ID: ${req.params.id}`);
+      return res.status(404).json({ message: 'Tenant not found' });
+    }
+    logger.debug('ENABLE_TENANT', `Marking tenant as active: ${tenant.name}`);
+    await tenant.update({ isActive: true });
+    logger.info('ENABLE_TENANT', `Tenant marked as active: ${tenant.name}`);
+    res.json({ message: 'Tenant enabled successfully', tenantId: tenant.id, tenantName: tenant.name });
+  } catch (error) {
+    logger.error('ENABLE_TENANT', `Error enabling tenant: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };
