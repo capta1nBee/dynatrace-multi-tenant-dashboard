@@ -1,4 +1,5 @@
 const axios = require('axios');
+const logger = require('./logger');
 
 class DynatraceClient {
   constructor(apiUrl, apiToken) {
@@ -16,12 +17,10 @@ class DynatraceClient {
   // Get all problems/alarms with pagination
   async getProblems(filters = {}) {
     try {
-      console.log('[DYNATRACE CLIENT] Fetching problems from:', this.apiUrl);
-      console.log('[DYNATRACE CLIENT] Filters:', filters);
+      logger.debug('DYNATRACE_CLIENT', 'Fetching problems');
 
       // baseURL already contains /api/v2, so just add /problems
       const url = '/problems';
-      console.log('[DYNATRACE CLIENT] Full URL:', this.apiUrl + url);
 
       let allProblems = [];
       let nextPageKey = null;
@@ -34,9 +33,7 @@ class DynatraceClient {
         }
 
         const response = await this.client.get(url, { params });
-        console.log('[DYNATRACE CLIENT] Problems response status:', response.status);
-        console.log('[DYNATRACE CLIENT] Page', pageCount + 1, '- Problems count:', response.data?.problems?.length || 0);
-        console.log('[DYNATRACE CLIENT] Total problems available:', response.data?.totalCount || 0);
+        logger.debug('DYNATRACE_CLIENT', `Page ${pageCount + 1}: ${response.data?.problems?.length || 0} problems`);
 
         if (response.data?.problems) {
           allProblems = allProblems.concat(response.data.problems);
@@ -46,12 +43,10 @@ class DynatraceClient {
         pageCount++;
       } while (nextPageKey);
 
-      console.log('[DYNATRACE CLIENT] Total problems fetched:', allProblems.length);
+      logger.debug('DYNATRACE_CLIENT', `Total problems fetched: ${allProblems.length}`);
       return { problems: allProblems, totalCount: allProblems.length };
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error fetching problems:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', 'Error fetching problems', error);
       throw error;
     }
   }
@@ -59,8 +54,7 @@ class DynatraceClient {
   // Get all entity types
   async getEntityTypes(filters = {}) {
     try {
-      console.log('[DYNATRACE CLIENT] Fetching entity types from:', this.apiUrl);
-      console.log('[DYNATRACE CLIENT] Filters:', filters);
+      logger.debug('DYNATRACE_CLIENT', 'Fetching entity types');
 
       let allTypes = [];
       let nextPageKey = null;
@@ -73,9 +67,7 @@ class DynatraceClient {
         }
 
         const response = await this.client.get('/entityTypes', { params });
-        console.log('[DYNATRACE CLIENT] Entity types response status:', response.status);
-        console.log('[DYNATRACE CLIENT] Page', pageCount + 1, '- Entity types count:', response.data?.types?.length || 0);
-        console.log('[DYNATRACE CLIENT] Total entity types available:', response.data?.totalCount || 0);
+        logger.debug('DYNATRACE_CLIENT', `Page ${pageCount + 1}: ${response.data?.types?.length || 0} types`);
 
         if (response.data?.types) {
           allTypes = allTypes.concat(response.data.types);
@@ -85,12 +77,10 @@ class DynatraceClient {
         pageCount++;
       } while (nextPageKey);
 
-      console.log('[DYNATRACE CLIENT] Total entity types fetched:', allTypes.length);
+      logger.debug('DYNATRACE_CLIENT', `Total entity types fetched: ${allTypes.length}`);
       return { types: allTypes, totalCount: allTypes.length };
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error fetching entity types:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', 'Error fetching entity types', error);
       throw error;
     }
   }
@@ -103,37 +93,35 @@ class DynatraceClient {
 
       // If no specific entity type provided, get all types first
       if (!entityType) {
-        console.log('[DYNATRACE CLIENT] No entity type specified, fetching all entity types...');
+        logger.debug('DYNATRACE_CLIENT', 'Fetching all entity types');
         const entityTypesResponse = await this.getEntityTypes();
         const entityTypes = entityTypesResponse.types.map(t => t.type);
-        console.log('[DYNATRACE CLIENT] Found entity types:', entityTypes);
+        logger.debug('DYNATRACE_CLIENT', `Found ${entityTypes.length} entity types`);
 
         // Fetch entities for each type
         for (const type of entityTypes) {
           try {
-            console.log('[DYNATRACE CLIENT] Fetching entities for type:', type);
+            logger.debug('DYNATRACE_CLIENT', `Fetching entities for type: ${type}`);
             const entities = await this.getEntitiesByType(type, filters);
             if (entities && entities.length > 0) {
               allEntities = allEntities.concat(entities);
-              console.log('[DYNATRACE CLIENT] Added', entities.length, 'entities of type', type);
+              logger.debug('DYNATRACE_CLIENT', `Added ${entities.length} entities of type ${type}`);
             }
           } catch (error) {
-            console.warn('[DYNATRACE CLIENT] Error fetching entities for type', type, ':', error.message);
+            logger.warn('DYNATRACE_CLIENT', `Error fetching entities for type ${type}: ${error.message}`);
           }
         }
 
-        console.log('[DYNATRACE CLIENT] Total entities fetched:', allEntities.length);
+        logger.debug('DYNATRACE_CLIENT', `Total entities fetched: ${allEntities.length}`);
         return { entities: allEntities, totalCount: allEntities.length };
       } else {
         // Fetch specific entity type
-        console.log('[DYNATRACE CLIENT] Fetching entities for specific type:', entityType);
+        logger.debug('DYNATRACE_CLIENT', `Fetching entities for specific type: ${entityType}`);
         const entities = await this.getEntitiesByType(entityType, filters);
         return { entities: entities || [], totalCount: entities?.length || 0 };
       }
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error fetching entities:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', `Error fetching entities: ${error.message}`, error);
       throw error;
     }
   }
@@ -144,24 +132,19 @@ class DynatraceClient {
       // Build URL with entitySelector for specific type and include properties
       // baseURL already contains /api/v2, so just add /entities
       let url = `/entities?entitySelector=type(${entityType})&pageSize=1000&fields=properties`;
-      console.log('[DYNATRACE CLIENT] Full URL:', this.apiUrl + url);
-      //console.log('[DYNATRACE CLIENT] Fetching entities from:', this.apiUrl + url);
-      //console.log('[DYNATRACE CLIENT] Entity type:', entityType);
+      logger.debug('DYNATRACE_CLIENT', `Fetching entities from URL: ${this.apiUrl}${url}`);
 
       const response = await this.client.get(url, { params: filters });
-      //console.log('[DYNATRACE CLIENT] Entities response status:', response.status);
-      //console.log('[DYNATRACE CLIENT] Entities count for type', entityType, ':', response.data?.entities?.length || 0);
 
       // Parse and enrich entity data
       if (response.data && response.data.entities) {
         const enrichedEntities = response.data.entities.map(entity => this.parseEntity(entity));
-        //console.log('[DYNATRACE CLIENT] Enriched entities for type', entityType, ':', enrichedEntities.length);
         return enrichedEntities;
       }
 
       return [];
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error fetching entities for type', entityType, ':', error.message);
+      logger.error('DYNATRACE_CLIENT', `Error fetching entities for type ${entityType}: ${error.message}`, error);
       throw error;
     }
   }
@@ -251,7 +234,7 @@ class DynatraceClient {
   // Get problem details with all fields
   async getProblemDetails(problemId) {
     try {
-      console.log('[DYNATRACE CLIENT] Fetching problem details for:', problemId);
+      logger.debug('DYNATRACE_CLIENT', `Fetching problem details for: ${problemId}`);
       // baseURL already contains /api/v2, so just add /problems/{problemId}
       // Include all detail fields: evidenceDetails, impactAnalysis, recentComments
       const params = {
@@ -259,14 +242,10 @@ class DynatraceClient {
       };
 
       const response = await this.client.get(`/problems/${problemId}`, { params });
-      console.log('[DYNATRACE CLIENT] Problem details response status:', response.status);
-      console.log('[DYNATRACE CLIENT] Problem details retrieved successfully');
-      console.log('[DYNATRACE CLIENT] Problem details keys:', Object.keys(response.data));
+      logger.debug('DYNATRACE_CLIENT', 'Problem details retrieved successfully');
       return response.data;
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error fetching problem details:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', `Error fetching problem details: ${error.message}`, error);
       throw error;
     }
   }
@@ -274,16 +253,13 @@ class DynatraceClient {
   // Add comment to problem
   async addComment(problemId, commentData) {
     try {
-      console.log('[DYNATRACE CLIENT] Adding comment to problem:', problemId);
-      console.log('[DYNATRACE CLIENT] Comment data:', commentData);
+      logger.debug('DYNATRACE_CLIENT', `Adding comment to problem: ${problemId}`);
 
       const response = await this.client.post(`/problems/${problemId}/comments`, commentData);
-      console.log('[DYNATRACE CLIENT] Comment added successfully, status:', response.status);
+      logger.debug('DYNATRACE_CLIENT', `Comment added successfully`);
       return response.data;
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error adding comment:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', `Error adding comment: ${error.message}`, error);
       throw error;
     }
   }
@@ -291,16 +267,13 @@ class DynatraceClient {
   // Update comment on problem
   async updateComment(problemId, commentId, commentData) {
     try {
-      console.log('[DYNATRACE CLIENT] Updating comment:', commentId, 'on problem:', problemId);
-      console.log('[DYNATRACE CLIENT] Comment data:', commentData);
+      logger.debug('DYNATRACE_CLIENT', `Updating comment: ${commentId} on problem: ${problemId}`);
 
       const response = await this.client.put(`/problems/${problemId}/comments/${commentId}`, commentData);
-      console.log('[DYNATRACE CLIENT] Comment updated successfully, status:', response.status);
+      logger.debug('DYNATRACE_CLIENT', `Comment updated successfully`);
       return response.data;
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error updating comment:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', `Error updating comment: ${error.message}`, error);
       throw error;
     }
   }
@@ -308,15 +281,13 @@ class DynatraceClient {
   // Get comment from problem
   async getComment(problemId, commentId) {
     try {
-      console.log('[DYNATRACE CLIENT] Getting comment:', commentId, 'from problem:', problemId);
+      logger.debug('DYNATRACE_CLIENT', `Getting comment: ${commentId} from problem: ${problemId}`);
 
       const response = await this.client.get(`/problems/${problemId}/comments/${commentId}`);
-      console.log('[DYNATRACE CLIENT] Comment retrieved successfully, status:', response.status);
+      logger.debug('DYNATRACE_CLIENT', `Comment retrieved successfully`);
       return response.data;
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Error getting comment:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', `Error getting comment: ${error.message}`, error);
       throw error;
     }
   }
@@ -324,14 +295,12 @@ class DynatraceClient {
   // Test connection
   async testConnection() {
     try {
-      console.log('[DYNATRACE CLIENT] Testing connection to:', this.apiUrl);
+      logger.debug('DYNATRACE_CLIENT', `Testing connection to: ${this.apiUrl}`);
       const response = await this.client.get('/problems');
-      console.log('[DYNATRACE CLIENT] Connection test successful, status:', response.status);
+      logger.debug('DYNATRACE_CLIENT', 'Connection test successful');
       return { success: true, data: response.data };
     } catch (error) {
-      console.error('[DYNATRACE CLIENT] Connection test failed:', error.message);
-      console.error('[DYNATRACE CLIENT] Error response:', error.response?.data);
-      console.error('[DYNATRACE CLIENT] Error status:', error.response?.status);
+      logger.error('DYNATRACE_CLIENT', `Connection test failed: ${error.message}`, error);
       return { success: false, error: error.message };
     }
   }

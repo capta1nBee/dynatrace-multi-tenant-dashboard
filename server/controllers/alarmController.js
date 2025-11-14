@@ -2,46 +2,36 @@ const Alarm = require('../models/Alarm');
 const Tenant = require('../models/Tenant');
 const DateFilter = require('../models/DateFilter');
 const DynatraceClient = require('../utils/dynatraceClient');
+const logger = require('../utils/logger');
 const { Op, fn, col } = require('sequelize');
 
 exports.syncAlarms = async (req, res) => {
   try {
-    console.log('[SYNC ALARMS] Starting alarm sync...');
     const { from, to } = req.body || {};
-
-    console.log('[SYNC ALARMS] Date range:', { from, to });
+    logger.info('SYNC_ALARMS', `Starting alarm sync...${from && to ? ` (${from} to ${to})` : ''}`);
 
     const tenants = await Tenant.findAll({ where: { isActive: true } });
-    console.log(`[SYNC ALARMS] Found ${tenants.length} active tenants`);
+    logger.debug('SYNC_ALARMS', `Found ${tenants.length} active tenants`);
     let totalAlarms = 0;
 
     for (const tenant of tenants) {
       try {
-        console.log(`[SYNC ALARMS] Syncing alarms for tenant: ${tenant.name} (ID: ${tenant.id})`);
-        console.log(`[SYNC ALARMS] Dynatrace URL: ${tenant.dynatraceApiUrl}`);
+        logger.debug('SYNC_ALARMS', `Syncing alarms for tenant: ${tenant.name} (ID: ${tenant.id})`);
 
         const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
-        console.log(`[SYNC ALARMS] Created Dynatrace client for ${tenant.name}`);
 
         // Build filters with date range
         const filters = {};
-        if (from) {
-          filters.from = from;
-          console.log('[SYNC ALARMS] From date:', from);
-        }
-        if (to) {
-          filters.to = to;
-          console.log('[SYNC ALARMS] To date:', to);
-        }
+        if (from) filters.from = from;
+        if (to) filters.to = to;
 
         const problemsResponse = await client.getProblems(filters);
-        console.log(`[SYNC ALARMS] Received problems response:`, JSON.stringify(problemsResponse).substring(0, 200));
 
         if (problemsResponse && problemsResponse.problems) {
-          console.log(`[SYNC ALARMS] Found ${problemsResponse.problems.length} problems for tenant ${tenant.name}`);
+          logger.debug('SYNC_ALARMS', `Found ${problemsResponse.problems.length} problems for tenant ${tenant.name}`);
 
           for (const problem of problemsResponse.problems) {
-            console.log(`[SYNC ALARMS] Processing problem: ${problem.problemId} - ${problem.title}`);
+            logger.debug('SYNC_ALARMS', `Processing problem: ${problem.problemId} - ${problem.title}`);
 
             // Extract affected entity name
             const affectedEntity = problem.affectedEntities && problem.affectedEntities.length > 0
@@ -52,19 +42,25 @@ exports.syncAlarms = async (req, res) => {
               ? problem.affectedEntities[0].entityId?.type
               : (problem.affectedEntity?.entityType || 'UNKNOWN');
 
-            console.log(`[SYNC ALARMS] Affected entity: ${affectedEntity}, Type: ${entityType}`);
+            // Extract displayId (Dynatrace returns displayId on problem details and often on list)
+            const displayId = problem.displayId || problem.displayID || (problem.displayIds && problem.displayIds[0]) || null;
 
             // Check if alarm already exists to detect status changes
+            // Try to match by dynatraceAlarmId first, fallback to displayId (useful if problemId changes but displayId stays)
+            const orClause = [{ dynatraceAlarmId: problem.problemId }];
+            if (displayId) orClause.push({ displayId });
+
             const existingAlarm = await Alarm.findOne({
-              where: { dynatraceAlarmId: problem.problemId }
+              where: { tenantId: tenant.id, [Op.or]: orClause }
             });
 
             if (existingAlarm && existingAlarm.status !== problem.status) {
-              console.log(`[SYNC ALARMS] ⚠️ STATUS CHANGED for ${problem.problemId}: ${existingAlarm.status} → ${problem.status}`);
+              logger.warn('SYNC_ALARMS', `Status changed for ${displayId || problem.problemId}: ${existingAlarm.status} → ${problem.status}`);
             }
 
             const [alarm, created] = await Alarm.upsert({
               dynatraceAlarmId: problem.problemId,
+              displayId: displayId,
               tenantId: tenant.id,
               tenantName: tenant.name,
               title: problem.title,
@@ -78,39 +74,32 @@ exports.syncAlarms = async (req, res) => {
               tags: problem.entityTags || [],
             });
 
-            if (created) {
-              console.log(`[SYNC ALARMS] ✅ New alarm created: ${problem.problemId}`);
-            } else {
-              console.log(`[SYNC ALARMS] 🔄 Alarm updated: ${problem.problemId}`);
-            }
+            logger.debug('SYNC_ALARMS', `Alarm ${created ? 'created' : 'updated'}: ${problem.problemId}`);
             totalAlarms++;
           }
         } else {
-          console.log(`[SYNC ALARMS] No problems found for tenant ${tenant.name}`);
+          logger.debug('SYNC_ALARMS', `No problems found for tenant ${tenant.name}`);
         }
 
         await tenant.update({ lastSyncTime: new Date() });
-        console.log(`[SYNC ALARMS] Updated lastSyncTime for tenant ${tenant.name}`);
+        logger.debug('SYNC_ALARMS', `Updated lastSyncTime for tenant ${tenant.name}`);
       } catch (error) {
-        console.error(`[SYNC ALARMS] Error syncing alarms for tenant ${tenant.name}:`, error.message);
-        console.error(`[SYNC ALARMS] Error stack:`, error.stack);
+        logger.error('SYNC_ALARMS', `Error syncing alarms for tenant ${tenant.name}`, error);
       }
     }
 
-    console.log(`[SYNC ALARMS] Sync completed. Total alarms synced: ${totalAlarms}`);
+    logger.info('SYNC_ALARMS', `Sync completed. Total alarms synced: ${totalAlarms}`);
     res.json({ message: 'Alarms synced', totalAlarms });
   } catch (error) {
-    console.error('[SYNC ALARMS] Fatal error:', error.message);
-    console.error('[SYNC ALARMS] Error stack:', error.stack);
+    logger.error('SYNC_ALARMS', 'Fatal error', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.getAlarms = async (req, res) => {
   try {
-    console.log('[GET ALARMS] Request received');
     const { tenantId, severity, status, limit, skip = 0, from, to } = req.query;
-    console.log('[GET ALARMS] Query params:', { tenantId, severity, status, limit, skip, from, to });
+    logger.debug('GET_ALARMS', `Request with params: status=${status}, tenantId=${tenantId}`);
 
     const where = {};
 
@@ -122,26 +111,22 @@ exports.getAlarms = async (req, res) => {
     // - OPEN alarms: ignore date range (return all OPEN alarms)
     // - CLOSED alarms: apply date range filter to startTime
     if (from || to) {
-      console.log('[GET ALARMS] Date range provided:', { from, to });
+      logger.debug('GET_ALARMS', `Date range filter applied`);
 
       if (status === 'CLOSED' || !status) {
         // For CLOSED alarms or when status is not specified, apply date filter
         where.startTime = {};
         if (from) {
           where.startTime[Op.gte] = new Date(from);
-          console.log('[GET ALARMS] From date (startTime) for CLOSED:', from);
         }
         if (to) {
           where.startTime[Op.lte] = new Date(to);
-          console.log('[GET ALARMS] To date (startTime) for CLOSED:', to);
         }
       } else if (status === 'OPEN') {
         // For OPEN alarms, ignore date range
-        console.log('[GET ALARMS] Date range ignored for OPEN alarms');
+        logger.debug('GET_ALARMS', 'Date range ignored for OPEN alarms');
       }
     }
-
-    console.log('[GET ALARMS] Where clause:', where);
 
     const queryOptions = {
       where,
@@ -156,27 +141,22 @@ exports.getAlarms = async (req, res) => {
 
     const { count, rows } = await Alarm.findAndCountAll(queryOptions);
 
-    console.log('[GET ALARMS] Found alarms:', count);
-    console.log('[GET ALARMS] Returning rows:', rows.length);
-
+    logger.debug('GET_ALARMS', `Found ${count} alarms, returning ${rows.length}`);
     res.json({ alarms: rows, total: count });
   } catch (error) {
-    console.error('[GET ALARMS] Error:', error.message);
-    console.error('[GET ALARMS] Stack:', error.stack);
+    logger.error('GET_ALARMS', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.getAlarmStats = async (req, res) => {
   try {
-    console.log('[GET ALARM STATS] Request received');
     const { tenantId } = req.query;
-    console.log('[GET ALARM STATS] Query params:', { tenantId });
+    logger.debug('GET_ALARM_STATS', `Request received${tenantId ? ` for tenant ${tenantId}` : ''}`);
 
     const where = {};
     if (tenantId) {
       where.tenantId = parseInt(tenantId);
-      console.log('[GET ALARM STATS] Filtering by tenant:', tenantId);
     }
 
     // Get severity-based stats
@@ -191,9 +171,7 @@ exports.getAlarmStats = async (req, res) => {
     const totalCount = await Alarm.count({ where });
     const closedCount = await Alarm.count({ where: { ...where, status: 'CLOSED' } });
 
-    console.log('[GET ALARM STATS] Total count:', totalCount);
-    console.log('[GET ALARM STATS] Closed count:', closedCount);
-    console.log('[GET ALARM STATS] Severity stats:', severityStats);
+    logger.debug('GET_ALARM_STATS', `Total: ${totalCount}, Closed: ${closedCount}`);
 
     const formattedStats = severityStats.map((stat) => ({
       _id: stat.severity,
@@ -204,11 +182,9 @@ exports.getAlarmStats = async (req, res) => {
     formattedStats.unshift({ _id: 'Total', count: totalCount });
     formattedStats.push({ _id: 'Closed', count: closedCount });
 
-    console.log('[GET ALARM STATS] Formatted stats:', formattedStats);
     res.json(formattedStats);
   } catch (error) {
-    console.error('[GET ALARM STATS] Error:', error.message);
-    console.error('[GET ALARM STATS] Stack:', error.stack);
+    logger.error('GET_ALARM_STATS', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -219,13 +195,12 @@ exports.getProblemDetails = async (req, res) => {
     const { problemId } = req.params;
     const { tenantId } = req.query;
 
-    console.log('[GET PROBLEM DETAILS] Request received for problemId:', problemId);
-    console.log('[GET PROBLEM DETAILS] Tenant ID:', tenantId);
+    logger.debug('GET_PROBLEM_DETAILS', `Request for problemId: ${problemId}`);
 
     // Get tenant to get Dynatrace credentials
     const tenant = await Tenant.findByPk(tenantId);
     if (!tenant) {
-      console.error('[GET PROBLEM DETAILS] Tenant not found:', tenantId);
+      logger.warn('GET_PROBLEM_DETAILS', `Tenant not found: ${tenantId}`);
       return res.status(404).json({ message: 'Tenant not found' });
     }
 
@@ -233,26 +208,25 @@ exports.getProblemDetails = async (req, res) => {
     const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
     const problemDetails = await client.getProblemDetails(problemId);
 
-    console.log('[GET PROBLEM DETAILS] Problem details retrieved successfully');
+    logger.debug('GET_PROBLEM_DETAILS', 'Problem details retrieved successfully');
     res.json(problemDetails);
   } catch (error) {
-    console.error('[GET PROBLEM DETAILS] Error:', error.message);
-    console.error('[GET PROBLEM DETAILS] Stack:', error.stack);
+    logger.error('GET_PROBLEM_DETAILS', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.getDateFilters = async (req, res) => {
   try {
-    console.log('[GET DATE FILTERS] Fetching date filters...');
+    logger.debug('GET_DATE_FILTERS', 'Fetching date filters');
     const filters = await DateFilter.findAll({
       where: { isActive: true },
       order: [['order', 'ASC']],
     });
-    console.log('[GET DATE FILTERS] Found', filters.length, 'date filters');
+    logger.debug('GET_DATE_FILTERS', `Found ${filters.length} date filters`);
     res.json(filters);
   } catch (error) {
-    console.error('[GET DATE FILTERS] Error:', error.message);
+    logger.error('GET_DATE_FILTERS', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -264,9 +238,7 @@ exports.addComment = async (req, res) => {
     const { tenantId } = req.query;
     const { message } = req.body;
 
-    console.log('[ADD COMMENT] Request received for problem:', problemId);
-    console.log('[ADD COMMENT] Tenant ID:', tenantId);
-    console.log('[ADD COMMENT] Message:', message);
+    logger.debug('ADD_COMMENT', `Request for problem: ${problemId}`);
 
     if (!message) {
       return res.status(400).json({ message: 'Comment message is required' });
@@ -275,7 +247,7 @@ exports.addComment = async (req, res) => {
     // Get tenant
     const tenant = await Tenant.findByPk(tenantId);
     if (!tenant) {
-      console.error('[ADD COMMENT] Tenant not found:', tenantId);
+      logger.warn('ADD_COMMENT', `Tenant not found: ${tenantId}`);
       return res.status(404).json({ message: 'Tenant not found' });
     }
 
@@ -283,11 +255,10 @@ exports.addComment = async (req, res) => {
     const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
     const result = await client.addComment(problemId, { message });
 
-    console.log('[ADD COMMENT] Comment added successfully');
+    logger.debug('ADD_COMMENT', 'Comment added successfully');
     res.status(201).json(result);
   } catch (error) {
-    console.error('[ADD COMMENT] Error:', error.message);
-    console.error('[ADD COMMENT] Stack:', error.stack);
+    logger.error('ADD_COMMENT', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -299,9 +270,7 @@ exports.updateComment = async (req, res) => {
     const { tenantId } = req.query;
     const { message } = req.body;
 
-    console.log('[UPDATE COMMENT] Request received for problem:', problemId, 'comment:', commentId);
-    console.log('[UPDATE COMMENT] Tenant ID:', tenantId);
-    console.log('[UPDATE COMMENT] Message:', message);
+    logger.debug('UPDATE_COMMENT', `Request for problem: ${problemId}, comment: ${commentId}`);
 
     if (!message) {
       return res.status(400).json({ message: 'Comment message is required' });
@@ -310,7 +279,7 @@ exports.updateComment = async (req, res) => {
     // Get tenant
     const tenant = await Tenant.findByPk(tenantId);
     if (!tenant) {
-      console.error('[UPDATE COMMENT] Tenant not found:', tenantId);
+      logger.warn('UPDATE_COMMENT', `Tenant not found: ${tenantId}`);
       return res.status(404).json({ message: 'Tenant not found' });
     }
 
@@ -318,11 +287,10 @@ exports.updateComment = async (req, res) => {
     const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
     const result = await client.updateComment(problemId, commentId, { message });
 
-    console.log('[UPDATE COMMENT] Comment updated successfully');
+    logger.debug('UPDATE_COMMENT', 'Comment updated successfully');
     res.status(204).json(result);
   } catch (error) {
-    console.error('[UPDATE COMMENT] Error:', error.message);
-    console.error('[UPDATE COMMENT] Stack:', error.stack);
+    logger.error('UPDATE_COMMENT', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -333,13 +301,12 @@ exports.getComment = async (req, res) => {
     const { problemId, commentId } = req.params;
     const { tenantId } = req.query;
 
-    console.log('[GET COMMENT] Request received for problem:', problemId, 'comment:', commentId);
-    console.log('[GET COMMENT] Tenant ID:', tenantId);
+    logger.debug('GET_COMMENT', `Request for problem: ${problemId}, comment: ${commentId}`);
 
     // Get tenant
     const tenant = await Tenant.findByPk(tenantId);
     if (!tenant) {
-      console.error('[GET COMMENT] Tenant not found:', tenantId);
+      logger.warn('GET_COMMENT', `Tenant not found: ${tenantId}`);
       return res.status(404).json({ message: 'Tenant not found' });
     }
 
@@ -347,11 +314,61 @@ exports.getComment = async (req, res) => {
     const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
     const result = await client.getComment(problemId, commentId);
 
-    console.log('[GET COMMENT] Comment retrieved successfully');
+    logger.debug('GET_COMMENT', 'Comment retrieved successfully');
     res.json(result);
   } catch (error) {
-    console.error('[GET COMMENT] Error:', error.message);
-    console.error('[GET COMMENT] Stack:', error.stack);
+    logger.error('GET_COMMENT', 'Error', error);
+    res.status(500).json({ message: error.message });
+  }
+};
+
+// Update alarm status by displayId
+exports.updateAlarmStatus = async (req, res) => {
+  try {
+    const { displayId } = req.params;
+    const { status, tenantId } = req.body;
+
+    logger.debug('UPDATE_ALARM_STATUS', `Request for displayId: ${displayId}, status: ${status}`);
+
+    if (!status) {
+      return res.status(400).json({ message: 'Status is required' });
+    }
+
+    const validStatuses = ['OPEN', 'CLOSED', 'RESOLVED', 'ACKNOWLEDGED'];
+    if (!validStatuses.includes(status)) {
+      return res.status(400).json({ message: `Invalid status. Must be one of: ${validStatuses.join(', ')}` });
+    }
+
+    // Find alarm by displayId and tenantId
+    const alarm = await Alarm.findOne({
+      where: {
+        displayId: displayId,
+        tenantId: tenantId
+      }
+    });
+
+    if (!alarm) {
+      logger.warn('UPDATE_ALARM_STATUS', `Alarm not found for displayId: ${displayId}`);
+      return res.status(404).json({ message: 'Alarm not found' });
+    }
+
+    const oldStatus = alarm.status;
+    await alarm.update({ status });
+
+    logger.debug('UPDATE_ALARM_STATUS', `Alarm status updated: ${oldStatus} → ${status} (ID: ${alarm.id})`);
+
+    res.json({
+      message: 'Alarm status updated successfully',
+      alarm: {
+        id: alarm.id,
+        displayId: alarm.displayId,
+        dynatraceAlarmId: alarm.dynatraceAlarmId,
+        previousStatus: oldStatus,
+        newStatus: status
+      }
+    });
+  } catch (error) {
+    logger.error('UPDATE_ALARM_STATUS', 'Error', error);
     res.status(500).json({ message: error.message });
   }
 };

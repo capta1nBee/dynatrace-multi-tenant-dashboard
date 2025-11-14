@@ -1,6 +1,7 @@
 const Asset = require('../models/Asset');
 const Tenant = require('../models/Tenant');
 const DynatraceClient = require('../utils/dynatraceClient');
+const logger = require('../utils/logger');
 const { Op, fn, col } = require('sequelize');
 
 // Normalize entity type to a category
@@ -23,48 +24,35 @@ const normalizeEntityType = (entityType) => {
 
 exports.syncAssets = async (req, res) => {
   try {
-    console.log('[SYNC ASSETS] ========================================');
-    console.log('[SYNC ASSETS] SYNCING ALL TENANTS (Manual or Scheduled)');
-    console.log('[SYNC ASSETS] ========================================');
+    logger.info('SYNC_ASSETS', 'Starting asset sync for all active tenants');
     const tenants = await Tenant.findAll({ where: { isActive: true } });
-    console.log(`[SYNC ASSETS] Found ${tenants.length} active tenants to sync`);
+    logger.debug('SYNC_ASSETS', `Found ${tenants.length} active tenants to sync`);
     let totalAssets = 0;
 
     for (const tenant of tenants) {
       try {
-        console.log(`[SYNC ASSETS] Syncing assets for tenant: ${tenant.name} (ID: ${tenant.id})`);
-        console.log(`[SYNC ASSETS] Dynatrace URL: ${tenant.dynatraceApiUrl}`);
+        logger.debug('SYNC_ASSETS', `Syncing assets for tenant: ${tenant.name} (ID: ${tenant.id})`);
 
         const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
-        console.log(`[SYNC ASSETS] Created Dynatrace client for ${tenant.name}`);
 
         // Fetch all entity types first
-        console.log(`[SYNC ASSETS] Fetching all entity types for tenant ${tenant.name}`);
+        logger.debug('SYNC_ASSETS', `Fetching entity types for tenant ${tenant.name}`);
         const entityTypesResponse = await client.getEntityTypes();
         const entityTypes = entityTypesResponse.types.map(t => t.type);
-        console.log(`[SYNC ASSETS] Found ${entityTypes.length} entity types:`, entityTypes);
+        logger.debug('SYNC_ASSETS', `Found ${entityTypes.length} entity types`);
 
         // Sync entities for each type
         for (const entityType of entityTypes) {
           try {
-            console.log(`[SYNC ASSETS] Syncing entities of type: ${entityType}`);
+            logger.debug('SYNC_ASSETS', `Syncing entities of type: ${entityType}`);
             const entitiesResponse = await client.getEntitiesByType(entityType);
 
             if (entitiesResponse && entitiesResponse.length > 0) {
-              console.log(`[SYNC ASSETS] Found ${entitiesResponse.length} entities of type ${entityType}`);
+              logger.debug('SYNC_ASSETS', `Found ${entitiesResponse.length} entities of type ${entityType}`);
 
               for (const entity of entitiesResponse) {
-                console.log(`[SYNC ASSETS] Processing entity: ${entity.entityId} - ${entity.displayName}`);
-                console.log(`[SYNC ASSETS] Entity type: ${entity.type}`);
-
                 // Use parsed properties from entity (already processed by parseEntity)
                 const properties = entity.properties || {};
-               /* console.log(`[SYNC ASSETS] Entity properties:`, {
-                  ipAddress: properties.ipAddress,
-                  osType: properties.osType,
-                  state: properties.state,
-                  memoryTotal: properties.memoryTotal,
-                }); */
 
                 await Asset.upsert({
                   dynatraceEntityId: entity.entityId,
@@ -83,37 +71,33 @@ exports.syncAssets = async (req, res) => {
                   },
                 });
                 totalAssets++;
-                console.log(`[SYNC ASSETS] Asset upserted successfully for: ${entity.displayName}`);
               }
             } else {
-              console.log(`[SYNC ASSETS] No entities found for type ${entityType}`);
+              logger.debug('SYNC_ASSETS', `No entities found for type ${entityType}`);
             }
           } catch (error) {
-            console.warn(`[SYNC ASSETS] Error syncing entities of type ${entityType}:`, error.message);
+            logger.warn('SYNC_ASSETS', `Error syncing entities of type ${entityType}: ${error.message}`);
           }
         }
 
         await tenant.update({ lastSyncTime: new Date() });
-        console.log(`[SYNC ASSETS] Updated lastSyncTime for tenant ${tenant.name}`);
+        logger.debug('SYNC_ASSETS', `Updated lastSyncTime for tenant ${tenant.name}`);
       } catch (error) {
-        console.error(`[SYNC ASSETS] Error syncing assets for tenant ${tenant.name}:`, error.message);
-        console.error(`[SYNC ASSETS] Error stack:`, error.stack);
+        logger.error('SYNC_ASSETS', `Error syncing assets for tenant ${tenant.name}: ${error.message}`, error);
       }
     }
 
-    console.log(`[SYNC ASSETS] Sync completed. Total assets synced: ${totalAssets}`);
+    logger.info('SYNC_ASSETS', `Sync completed. Total assets synced: ${totalAssets}`);
     res.json({ message: 'Assets synced', totalAssets });
   } catch (error) {
-    console.error('[SYNC ASSETS] Fatal error:', error.message);
-    console.error('[SYNC ASSETS] Error stack:', error.stack);
+    logger.error('SYNC_ASSETS', `Fatal error during asset sync: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.getAssets = async (req, res) => {
   try {
-    console.log('[GET ASSETS] Request received');
-    console.log('[GET ASSETS] Query params:', req.query);
+    logger.debug('GET_ASSETS', 'Fetching assets');
 
     const { tenantId, type, status, search, limit = 10000, skip = 0 } = req.query;
     const where = {};
@@ -126,14 +110,12 @@ exports.getAssets = async (req, res) => {
       where.type = type;
     } else if (!tenantId) {
       where.type = 'HOST';
-      console.log('[GET ASSETS] No type specified and no tenantId, defaulting to HOST');
+      logger.debug('GET_ASSETS', 'No type specified, defaulting to HOST');
     } else {
-      console.log('[GET ASSETS] No type specified but tenantId provided, getting all types');
+      logger.debug('GET_ASSETS', 'No type specified, getting all types');
     }
     if (status) where.status = status;
     if (search) where.name = { [Op.like]: `%${search}%` };
-
-    console.log('[GET ASSETS] Where clause:', where);
 
     const { count, rows } = await Asset.findAndCountAll({
       where,
@@ -142,8 +124,7 @@ exports.getAssets = async (req, res) => {
       offset: parseInt(skip),
     });
 
-    console.log('[GET ASSETS] Found assets:', count);
-    console.log('[GET ASSETS] Returning rows:', rows.length);
+    logger.debug('GET_ASSETS', `Found ${count} assets, returning ${rows.length} rows`);
 
     // Format response - only return necessary fields
     const formattedAssets = rows.map(asset => {
@@ -181,26 +162,22 @@ exports.getAssets = async (req, res) => {
       };
     });
 
-    console.log('[GET ASSETS] First asset formatted:', formattedAssets[0] ? JSON.stringify(formattedAssets[0]).substring(0, 300) : 'No assets');
-
     res.json({ assets: formattedAssets, total: count });
   } catch (error) {
-    console.error('[GET ASSETS] Error:', error.message);
-    console.error('[GET ASSETS] Stack:', error.stack);
+    logger.error('GET_ASSETS', `Error fetching assets: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.getAssetStats = async (req, res) => {
   try {
-    console.log('[GET ASSET STATS] Request received');
+    logger.debug('GET_ASSET_STATS', 'Fetching asset statistics');
     const { tenantId } = req.query;
-    console.log('[GET ASSET STATS] Query params:', { tenantId });
 
     const where = {};
     if (tenantId) {
       where.tenantId = parseInt(tenantId);
-      console.log('[GET ASSET STATS] Filtering by tenant:', tenantId);
+      logger.debug('GET_ASSET_STATS', `Filtering by tenant: ${tenantId}`);
     }
 
     const stats = await Asset.findAll({
@@ -210,18 +187,15 @@ exports.getAssetStats = async (req, res) => {
       raw: true,
     });
 
-    console.log('[GET ASSET STATS] Raw stats:', stats);
-
     const formattedStats = stats.map((stat) => ({
       _id: stat.type,
       count: parseInt(stat.count),
     }));
 
-    console.log('[GET ASSET STATS] Formatted stats:', formattedStats);
+    logger.debug('GET_ASSET_STATS', `Returning stats for ${formattedStats.length} asset types`);
     res.json(formattedStats);
   } catch (error) {
-    console.error('[GET ASSET STATS] Error:', error.message);
-    console.error('[GET ASSET STATS] Stack:', error.stack);
+    logger.error('GET_ASSET_STATS', `Error fetching asset stats: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };
@@ -231,19 +205,16 @@ exports.getEntityTypes = async (req, res) => {
   try {
     const { tenantId } = req.query;
 
-    console.log('[GET ENTITY TYPES] Request received');
-    console.log('[GET ENTITY TYPES] Tenant ID:', tenantId);
+    logger.debug('GET_ENTITY_TYPES', `Fetching entity types for tenant: ${tenantId}`);
 
     // Get tenant to verify it exists
     const tenant = await Tenant.findByPk(tenantId);
     if (!tenant) {
-      console.error('[GET ENTITY TYPES] Tenant not found:', tenantId);
+      logger.error('GET_ENTITY_TYPES', `Tenant not found: ${tenantId}`);
       return res.status(404).json({ message: 'Tenant not found' });
     }
 
     // Get distinct entity types from database (much faster than Dynatrace API)
-    console.log('[GET ENTITY TYPES] Fetching distinct types from database for tenant:', tenantId);
-
     const distinctTypes = await Asset.findAll({
       attributes: [[fn('DISTINCT', col('type')), 'type']],
       where: { tenantId: parseInt(tenantId) },
@@ -255,15 +226,14 @@ exports.getEntityTypes = async (req, res) => {
       .filter(type => type) // Remove null/empty values
       .sort();
 
-    console.log('[GET ENTITY TYPES] Distinct types from database:', types);
+    logger.debug('GET_ENTITY_TYPES', `Found ${types.length} distinct entity types`);
 
     res.json({
       types: types,
       totalCount: types.length,
     });
   } catch (error) {
-    console.error('[GET ENTITY TYPES] Error:', error.message);
-    console.error('[GET ENTITY TYPES] Stack:', error.stack);
+    logger.error('GET_ENTITY_TYPES', `Error fetching entity types: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };

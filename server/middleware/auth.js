@@ -1,4 +1,5 @@
 const jwt = require('jsonwebtoken');
+const logger = require('../utils/logger');
 
 const authMiddleware = (req, res, next) => {
   try {
@@ -37,12 +38,12 @@ const optionalAuthMiddleware = (req, res, next) => {
     if (token) {
       const decoded = jwt.verify(token, process.env.JWT_SECRET);
       req.user = decoded;
-      console.log('[AUTH] Optional auth - User authenticated:', decoded.username);
+      logger.debug('AUTH', `User authenticated: ${decoded.username}`);
     } else {
-      console.log('[AUTH] Optional auth - No token provided, allowing public access');
+      logger.debug('AUTH', 'No token provided, allowing public access');
     }
   } catch (error) {
-    console.log('[AUTH] Optional auth - Invalid token, allowing public access');
+    logger.debug('AUTH', 'Invalid token, allowing public access');
   }
   next();
 };

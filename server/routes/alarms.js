@@ -18,6 +18,9 @@ router.post('/:problemId/comments', optionalAuthMiddleware, alarmController.addC
 router.put('/:problemId/comments/:commentId', optionalAuthMiddleware, alarmController.updateComment);
 router.get('/:problemId/comments/:commentId', optionalAuthMiddleware, alarmController.getComment);
 
+// Update alarm status by displayId
+router.put('/status/:displayId', optionalAuthMiddleware, alarmController.updateAlarmStatus);
+
 router.get('/', optionalAuthMiddleware, alarmController.getAlarms);
 
 module.exports = router;

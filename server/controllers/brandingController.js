@@ -1,12 +1,13 @@
 const Branding = require('../models/Branding');
+const logger = require('../utils/logger');
 
 exports.getBranding = async (req, res) => {
   try {
-    console.log('[GET BRANDING] Fetching branding configuration...');
+    logger.debug('GET_BRANDING', 'Fetching branding configuration');
     let branding = await Branding.findOne({ where: { isActive: true } });
     
     if (!branding) {
-      console.log('[GET BRANDING] No active branding found, creating default');
+      logger.debug('GET_BRANDING', 'No active branding found, creating default');
       branding = await Branding.create({
         dashboardTitle: 'Dynatrace Multi-Tenant Monitor',
         primaryColor: '#667eea',
@@ -15,17 +16,17 @@ exports.getBranding = async (req, res) => {
       });
     }
 
-    console.log('[GET BRANDING] Branding retrieved');
+    logger.debug('GET_BRANDING', 'Branding retrieved successfully');
     res.json(branding);
   } catch (error) {
-    console.error('[GET BRANDING] Error:', error.message);
+    logger.error('GET_BRANDING', `Error fetching branding: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.updateBranding = async (req, res) => {
   try {
-    console.log('[UPDATE BRANDING] Updating branding configuration...');
+    logger.debug('UPDATE_BRANDING', 'Updating branding configuration');
     const { dashboardTitle, logoUrl, logoFileName, primaryColor, secondaryColor } = req.body;
 
     // Find existing active branding
@@ -33,7 +34,7 @@ exports.updateBranding = async (req, res) => {
 
     if (branding) {
       // Update existing branding
-      console.log('[UPDATE BRANDING] Updating existing branding record');
+      logger.debug('UPDATE_BRANDING', 'Updating existing branding record');
       await branding.update({
         dashboardTitle,
         logoUrl,
@@ -44,7 +45,7 @@ exports.updateBranding = async (req, res) => {
       });
     } else {
       // Create new branding if none exists
-      console.log('[UPDATE BRANDING] No existing branding found, creating new one');
+      logger.debug('UPDATE_BRANDING', 'Creating new branding record');
       branding = await Branding.create({
         dashboardTitle,
         logoUrl,
@@ -56,10 +57,10 @@ exports.updateBranding = async (req, res) => {
       });
     }
 
-    console.log('[UPDATE BRANDING] Branding updated successfully');
+    logger.debug('UPDATE_BRANDING', 'Branding updated successfully');
     res.json({ message: 'Branding updated successfully', branding });
   } catch (error) {
-    console.error('[UPDATE BRANDING] Error:', error.message);
+    logger.error('UPDATE_BRANDING', `Error updating branding: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };

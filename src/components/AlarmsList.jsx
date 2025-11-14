@@ -47,6 +47,7 @@ const [toDate, setToDate] = useState(() => {
   const [alarmComments, setAlarmComments] = useState([]);
   const [commentError, setCommentError] = useState('');
   const [commentModalAlarm, setCommentModalAlarm] = useState(null);
+  const [updatingAlarmId, setUpdatingAlarmId] = useState(null);
 
   // Load date filters on component mount
   useEffect(() => {
@@ -135,6 +136,7 @@ const [toDate, setToDate] = useState(() => {
         alarm.status,
         alarm.tenantName,
         alarm.dynatraceAlarmId,
+        alarm.displayId,
         alarm.entityId,
         alarm.entityName,
       ];
@@ -288,6 +290,56 @@ const [toDate, setToDate] = useState(() => {
       setCommentError(`Error adding comment: ${error.message}`);
     } finally {
       setSubmittingComment(false);
+    }
+  };
+
+  const handleMarkAsClosed = async (alarm) => {
+    if (!alarm.displayId) {
+      alert('Cannot mark alarm as closed: Display ID is missing');
+      return;
+    }
+
+    if (!confirm(`Mark alarm "${alarm.title}" as CLOSED?`)) {
+      return;
+    }
+
+    setUpdatingAlarmId(alarm.id);
+    try {
+      const token = localStorage.getItem('token');
+      const headers = {
+        'Content-Type': 'application/json',
+      };
+      if (token) {
+        headers['Authorization'] = `Bearer ${token}`;
+      }
+
+      const response = await fetch(
+        `/api/alarms/status/${alarm.displayId}`,
+        {
+          method: 'PUT',
+          headers,
+          body: JSON.stringify({
+            status: 'CLOSED',
+            tenantId: alarm.tenantId
+          }),
+        }
+      );
+
+      if (response.ok) {
+        const result = await response.json();
+        console.log('[ALARMS LIST] Alarm marked as closed:', result);
+        alert(`Alarm "${alarm.title}" has been marked as CLOSED (Display ID: ${alarm.displayId})`);
+        // Refresh alarms list
+        onRefresh();
+      } else {
+        const error = await response.json();
+        alert(`Failed to mark alarm as closed: ${error.message || response.statusText}`);
+      }
+    } catch (error) {
+      console.error('[ALARMS LIST] Error marking alarm as closed:', error);
+      alert(`Error marking alarm as closed: ${error.message}`);
+    } finally {
+      setUpdatingAlarmId(null);
     }
   };
 
@@ -491,6 +543,7 @@ const [toDate, setToDate] = useState(() => {
     const data = filteredAlarms.map(alarm => ({
       'Tenant': alarm.tenantName,
       'Title': alarm.title,
+      'Display ID': alarm.displayId || '-',
       'Severity': alarm.severity,
       'Status': alarm.status,
       'Entity': alarm.affectedEntity,
@@ -526,15 +579,15 @@ const [toDate, setToDate] = useState(() => {
 
     // Table headers
     doc.setFontSize(9);
-    const headers = ['Tenant', 'Title', 'Severity', 'Status', 'Entity', 'Start Time'];
-    const columnWidths = [20, 40, 20, 20, 30, 40];
+    const fullHeaders = ['Tenant', 'Title', 'Display ID', 'Severity', 'Status', 'Entity', 'Start Time'];
+    const fullColumnWidths = [20, 40, 30, 20, 20, 30, 40];
     let xPosition = 10;
 
     doc.setFillColor(200, 200, 200);
-    headers.forEach((header, idx) => {
-      doc.rect(xPosition, yPosition - 5, columnWidths[idx], 7, 'F');
+    fullHeaders.forEach((header, idx) => {
+      doc.rect(xPosition, yPosition - 5, fullColumnWidths[idx], 7, 'F');
       doc.text(header, xPosition + 2, yPosition);
-      xPosition += columnWidths[idx];
+      xPosition += fullColumnWidths[idx];
     });
     yPosition += 10;
 
@@ -549,6 +602,7 @@ const [toDate, setToDate] = useState(() => {
       const rowData = [
         alarm.tenantName,
         alarm.title.substring(0, 30),
+        (alarm.displayId || '-').toString().substring(0, 20),
         alarm.severity,
         alarm.status,
         alarm.affectedEntity.substring(0, 20),
@@ -557,7 +611,7 @@ const [toDate, setToDate] = useState(() => {
 
       rowData.forEach((data, idx) => {
         doc.text(data, xPosition + 2, yPosition);
-        xPosition += columnWidths[idx];
+        xPosition += fullColumnWidths[idx];
       });
       yPosition += 7;
     });
@@ -613,8 +667,6 @@ const [toDate, setToDate] = useState(() => {
           <select value={filterStatus} onChange={(e) => setFilterStatus(e.target.value)}>
             <option value="OPEN">🔴 Open</option>
             <option value="CLOSED">✅ Closed</option>
-            <option value="RESOLVED">✅ Resolved</option>
-            <option value="ACKNOWLEDGED">🔵 Acknowledged</option>
             <option value="All Status">All Status</option>
           </select>
         </div>
@@ -681,6 +733,7 @@ const [toDate, setToDate] = useState(() => {
                   Title {sortColumn === 'title' && (sortDirection === 'asc' ? '↑' : '↓')}
                 </button>
               </th>
+              <th>Display ID</th>
               <th>
                 <button onClick={() => { setSortColumn('severity'); setSortDirection(sortDirection === 'asc' ? 'desc' : 'asc'); }} className="sort-header-btn">
                   Severity {sortColumn === 'severity' && (sortDirection === 'asc' ? '↑' : '↓')}
@@ -711,6 +764,7 @@ const [toDate, setToDate] = useState(() => {
                 <td>{index + 1}</td>
                 <td>{alarm.tenantName}</td>
                 <td>{alarm.title}</td>
+                <td>{alarm.displayId || '-'}</td>
                 <td>
                   <span className="badge" style={{ backgroundColor: getSeverityColor(alarm.severity) }}>
                     {alarm.severity}
@@ -811,6 +865,30 @@ const [toDate, setToDate] = useState(() => {
                   >
                     👁️ View
                   </button>
+                  {alarm.status === 'OPEN' && alarm.displayId && (
+                    <button
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        handleMarkAsClosed(alarm);
+                      }}
+                      disabled={updatingAlarmId === alarm.id}
+                      style={{
+                        padding: '6px 10px',
+                        backgroundColor: '#d32f2f',
+                        color: 'white',
+                        border: 'none',
+                        borderRadius: '4px',
+                        cursor: updatingAlarmId === alarm.id ? 'not-allowed' : 'pointer',
+                        fontSize: '11px',
+                        fontWeight: '600',
+                        whiteSpace: 'nowrap',
+                        opacity: updatingAlarmId === alarm.id ? 0.6 : 1,
+                      }}
+                      title="Mark alarm as CLOSED (using Display ID)"
+                    >
+                      {updatingAlarmId === alarm.id ? '⏳ Closing...' : '🔒 Close'}
+                    </button>
+                  )}
                 </td>
               </tr>
             ))}

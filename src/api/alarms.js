@@ -13,6 +13,10 @@ export const alarmsAPI = {
   getDateFilters: () =>
     client.get('/alarms/filters/date'),
 
+  // Update alarm status by displayId
+  updateStatus: (displayId, status, tenantId) =>
+    client.put(`/alarms/status/${displayId}`, { status, tenantId }),
+
   // Comment operations
   addComment: (problemId, commentData, tenantId) =>
     client.post(`/alarms/${problemId}/comments`, commentData, { params: { tenantId } }),

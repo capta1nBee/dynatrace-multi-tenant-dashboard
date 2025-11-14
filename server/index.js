@@ -3,6 +3,7 @@ const express = require('express');
 const cors = require('cors');
 const path = require('path');
 const { connectDB, sequelize } = require('./config/database');
+const logger = require('./utils/logger');
 
 // Import models
 const User = require('./models/User');
@@ -53,12 +54,12 @@ const initDB = async () => {
     }
     // Sync models
     await sequelize.sync({ alter: true });
-    console.log('Database synchronized');
+    logger.info('INIT', 'Database synchronized');
 
     // Check if admin user exists
     const adminUser = await User.findOne({ where: { role: 'ADMIN' } });
     if (!adminUser) {
-      console.log('[INIT] No admin user found, creating default admin user...');
+      logger.info('INIT', 'No admin user found, creating default admin user...');
       const adminUsername = 'admin';
       const adminPassword = generateRandomPassword();
       const adminEmail = 'admin@dynatrace-monitor.local';
@@ -80,13 +81,13 @@ const initDB = async () => {
       console.log('⚠️  IMPORTANT: Save these credentials in a secure location!');
       console.log('='.repeat(60) + '\n');
     } else {
-      console.log('[INIT] Admin user already exists, skipping creation');
+      logger.debug('INIT', 'Admin user already exists, skipping creation');
     }
 
     // Initialize default date filters
     const existingFilters = await DateFilter.count();
     if (existingFilters === 0) {
-      console.log('[INIT] Creating default date filters...');
+      logger.info('INIT', 'Creating default date filters...');
       const defaultFilters = [
         { label: '10 seconds', value: '10s', seconds: 10, order: 1 },
         { label: '30 seconds', value: '30s', seconds: 30, order: 2 },
@@ -94,12 +95,12 @@ const initDB = async () => {
         { label: '5 minutes', value: '5m', seconds: 300, order: 4 },
       ];
       await DateFilter.bulkCreate(defaultFilters);
-      console.log('[INIT] Default date filters created');
+      logger.info('INIT', 'Default date filters created');
     } else {
-      console.log('[INIT] Date filters already exist, skipping creation');
+      logger.debug('INIT', 'Date filters already exist, skipping creation');
     }
   } catch (error) {
-    console.error('Database initialization error:', error);
+    logger.error('INIT', 'Database initialization error', error);
     process.exit(1);
   }
 };
@@ -119,7 +120,7 @@ app.get('/api/health', (req, res) => {
 
 // Error handling middleware
 app.use((err, req, res, next) => {
-  console.error(err.stack);
+  logger.error('SERVER', 'Unhandled error', err);
   res.status(500).json({ message: 'Internal server error', error: err.message });
 });
 
@@ -128,25 +129,24 @@ const scheduleAlarmSync = () => {
   // Run alarm sync every 3 minutes (180000 ms)
   setInterval(async () => {
     try {
-      console.log('[SCHEDULED JOB] Starting 3-minute alarm sync at', new Date().toISOString());
+      logger.info('SYNC_ALARMS', 'Starting scheduled 3-minute alarm sync');
 
       // Create a mock request/response for the controller
       const mockReq = {};
       const mockRes = {
-        json: (data) => console.log('[SCHEDULED JOB] Alarm sync result:', data),
+        json: (data) => logger.debug('SYNC_ALARMS', 'Sync result completed'),
         status: (code) => ({
-          json: (data) => console.log('[SCHEDULED JOB] Alarm sync error:', code, data)
+          json: (data) => logger.error('SYNC_ALARMS', `Sync error: ${code}`)
         })
       };
 
       await alarmController.syncAlarms(mockReq, mockRes);
-      console.log('[SCHEDULED JOB] 3-minute alarm sync completed at', new Date().toISOString());
     } catch (error) {
-      console.error('[SCHEDULED JOB] Error during 3-minute alarm sync:', error.message);
+      logger.error('SYNC_ALARMS', 'Error during scheduled alarm sync', error);
     }
   }, 180000); // 3 minutes in milliseconds
 
-  console.log('[SCHEDULED JOB] 3-minute alarm sync job scheduled');
+  logger.info('SYNC_ALARMS', '3-minute alarm sync job scheduled');
 };
 
 // Scheduled job for 30-minute asset sync
@@ -154,25 +154,24 @@ const scheduleAssetSync = () => {
   // Run asset sync every 30 minutes (1800000 ms)
   setInterval(async () => {
     try {
-      console.log('[SCHEDULED JOB] Starting 30-minute asset sync at', new Date().toISOString());
+      logger.info('SYNC_ASSETS', 'Starting scheduled 30-minute asset sync');
 
       // Create a mock request/response for the controller
       const mockReq = {};
       const mockRes = {
-        json: (data) => console.log('[SCHEDULED JOB] Asset sync result:', data),
+        json: (data) => logger.debug('SYNC_ASSETS', 'Sync result completed'),
         status: (code) => ({
-          json: (data) => console.log('[SCHEDULED JOB] Asset sync error:', code, data)
+          json: (data) => logger.error('SYNC_ASSETS', `Sync error: ${code}`)
         })
       };
 
       await assetController.syncAssets(mockReq, mockRes);
-      console.log('[SCHEDULED JOB] 30-minute asset sync completed at', new Date().toISOString());
     } catch (error) {
-      console.error('[SCHEDULED JOB] Error during 30-minute asset sync:', error.message);
+      logger.error('SYNC_ASSETS', 'Error during scheduled asset sync', error);
     }
   }, 1800000); // 30 minutes in milliseconds
 
-  console.log('[SCHEDULED JOB] 30-minute asset sync job scheduled');
+  logger.info('SYNC_ASSETS', '30-minute asset sync job scheduled');
 };
 
 const PORT = process.env.VITE_SERVER_PORT || 5000;
@@ -186,7 +185,7 @@ initDB().then(() => {
   scheduleAssetSync();
 
   app.listen(PORT, '0.0.0.0', () => {
-    console.log(`Server running on port ${PORT}`);
+    logger.info('SERVER', `Server running on port ${PORT}`);
   });
 
 });

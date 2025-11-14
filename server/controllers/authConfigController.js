@@ -1,12 +1,13 @@
 const AuthConfig = require('../models/AuthConfig');
+const logger = require('../utils/logger');
 
 exports.getAuthConfig = async (req, res) => {
   try {
-    console.log('[GET AUTH CONFIG] Fetching auth configuration...');
+    logger.debug('GET_AUTH_CONFIG', 'Fetching auth configuration');
     const config = await AuthConfig.findOne({ where: { isActive: true } });
     
     if (!config) {
-      console.log('[GET AUTH CONFIG] No active config found, returning LOCAL');
+      logger.debug('GET_AUTH_CONFIG', 'No active config found, returning LOCAL');
       return res.json({ authType: 'LOCAL' });
     }
 
@@ -27,23 +28,21 @@ exports.getAuthConfig = async (req, res) => {
       ldapUseTls: config.ldapUseTls,
     };
 
-    console.log('[GET AUTH CONFIG] Config retrieved:', safeConfig.authType);
+    logger.debug('GET_AUTH_CONFIG', `Config retrieved: ${safeConfig.authType}`);
     res.json(safeConfig);
   } catch (error) {
-    console.error('[GET AUTH CONFIG] Error:', error.message);
+    logger.error('GET_AUTH_CONFIG', `Error fetching auth config: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };
 
 exports.updateAuthConfig = async (req, res) => {
   try {
-    console.log('[UPDATE AUTH CONFIG] Updating auth configuration...');
-    console.log('[UPDATE AUTH CONFIG] Request body:', JSON.stringify(req.body, null, 2));
+    logger.debug('UPDATE_AUTH_CONFIG', 'Updating auth configuration');
 
     const { authType, oidcClientId, oidcClientSecret, oidcDiscoveryUrl, oidcRedirectUri, oidcScopes, ldapServer, ldapPort, ldapBaseDn, ldapBindDn, ldapBindPassword, ldapUserSearchFilter, ldapLoginAttribute, ldapUseTls } = req.body;
 
-    console.log('[UPDATE AUTH CONFIG] Extracted authType:', authType);
-    console.log('[UPDATE AUTH CONFIG] Extracted ldapServer:', ldapServer);
+    logger.debug('UPDATE_AUTH_CONFIG', `Auth type: ${authType}, LDAP server: ${ldapServer || 'N/A'}`);
 
     // Delete all existing configs (not just deactivate)
     await AuthConfig.destroy({ where: {} });
@@ -68,10 +67,10 @@ exports.updateAuthConfig = async (req, res) => {
       createdBy: req.user.username,
     });
 
-    console.log('[UPDATE AUTH CONFIG] Config created:', config.authType);
+    logger.debug('UPDATE_AUTH_CONFIG', `Config created: ${config.authType}`);
     res.json({ message: 'Auth config updated successfully', config });
   } catch (error) {
-    console.error('[UPDATE AUTH CONFIG] Error:', error.message);
+    logger.error('UPDATE_AUTH_CONFIG', `Error updating auth config: ${error.message}`, error);
     res.status(500).json({ message: error.message });
   }
 };

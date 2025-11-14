@@ -19,6 +19,11 @@ const Alarm = sequelize.define(
       unique: true,
       allowNull: false,
     },
+    // Display ID from Dynatrace (eg. P-25111900)
+    displayId: {
+      type: DataTypes.STRING,
+      allowNull: true,
+    },
     title: DataTypes.STRING,
     description: DataTypes.TEXT,
     severity: {
