@@ -7,6 +7,7 @@ export default ({ mode }) => {
   return defineConfig({
     plugins: [react()],
     server: {
+      allowedHosts: true,
       host: '0.0.0.0',
       port: parseInt(env.VITE_FRONTEND_PORT),
       proxy: {
