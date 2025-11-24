@@ -373,3 +373,67 @@ exports.updateAlarmStatus = async (req, res) => {
   }
 };
 
+// Check and update status of OPEN alarms from Dynatrace
+exports.checkOpenAlarms = async (req, res) => {
+  try {
+    logger.info('CHECK_OPEN_ALARMS', 'Starting check for OPEN alarms');
+
+    // Find all OPEN alarms in database
+    const openAlarms = await Alarm.findAll({
+      where: { status: 'OPEN' }
+    });
+
+    logger.debug('CHECK_OPEN_ALARMS', `Found ${openAlarms.length} OPEN alarms to check`);
+
+    let updatedCount = 0;
+    let errorCount = 0;
+
+    for (const alarm of openAlarms) {
+      try {
+        // Get tenant info
+        const tenant = await Tenant.findByPk(alarm.tenantId);
+        if (!tenant || !tenant.isActive) {
+          logger.debug('CHECK_OPEN_ALARMS', `Skipping alarm ${alarm.dynatraceAlarmId} - tenant inactive or not found`);
+          continue;
+        }
+
+        // Query Dynatrace API for current problem status
+        const client = new DynatraceClient(tenant.dynatraceApiUrl, tenant.dynatraceApiToken);
+        const problemDetails = await client.getProblemDetails(alarm.dynatraceAlarmId);
+
+        // Check if status has changed
+        if (problemDetails.status && problemDetails.status !== alarm.status) {
+          const oldStatus = alarm.status;
+          await alarm.update({
+            status: problemDetails.status,
+            endTime: problemDetails.endTime && problemDetails.endTime > 0 ? new Date(problemDetails.endTime) : null
+          });
+
+          logger.info('CHECK_OPEN_ALARMS', `Status updated for ${alarm.displayId || alarm.dynatraceAlarmId}: ${oldStatus} → ${problemDetails.status}`);
+          updatedCount++;
+        }
+      } catch (error) {
+        // Log error but continue with other alarms
+        logger.error('CHECK_OPEN_ALARMS', `Error checking alarm ${alarm.dynatraceAlarmId}`, error);
+        errorCount++;
+      }
+    }
+
+    const message = `Check completed. Updated: ${updatedCount}, Errors: ${errorCount}, Total checked: ${openAlarms.length}`;
+    logger.info('CHECK_OPEN_ALARMS', message);
+
+    if (res) {
+      res.json({
+        message,
+        updatedCount,
+        errorCount,
+        totalChecked: openAlarms.length
+      });
+    }
+  } catch (error) {
+    logger.error('CHECK_OPEN_ALARMS', 'Fatal error', error);
+    if (res) {
+      res.status(500).json({ message: error.message });
+    }
+  }
+};

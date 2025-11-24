@@ -174,6 +174,31 @@ const scheduleAssetSync = () => {
   logger.info('SYNC_ASSETS', '30-minute asset sync job scheduled');
 };
 
+// Scheduled job for checking OPEN alarms status
+const scheduleOpenAlarmsCheck = () => {
+  // Run check every 5 minutes (300000 ms)
+  setInterval(async () => {
+    try {
+      logger.info('CHECK_OPEN_ALARMS', 'Starting scheduled 5-minute OPEN alarms check');
+
+      // Create a mock request/response for the controller
+      const mockReq = {};
+      const mockRes = {
+        json: (data) => logger.debug('CHECK_OPEN_ALARMS', `Check completed: ${JSON.stringify(data)}`),
+        status: (code) => ({
+          json: (data) => logger.error('CHECK_OPEN_ALARMS', `Check error: ${code}`)
+        })
+      };
+
+      await alarmController.checkOpenAlarms(mockReq, mockRes);
+    } catch (error) {
+      logger.error('CHECK_OPEN_ALARMS', 'Error during scheduled OPEN alarms check', error);
+    }
+  }, 180000); // 5 minutes in milliseconds
+
+  logger.info('CHECK_OPEN_ALARMS', '5-minute OPEN alarms check job scheduled');
+};
+
 const PORT = process.env.VITE_SERVER_PORT || 5000;
 
 // Start server
@@ -183,6 +208,9 @@ initDB().then(() => {
 
   // Schedule 30-minute asset sync
   scheduleAssetSync();
+
+  // Schedule 5-minute OPEN alarms check
+  scheduleOpenAlarmsCheck();
 
   app.listen(PORT, '0.0.0.0', () => {
     logger.info('SERVER', `Server running on port ${PORT}`);

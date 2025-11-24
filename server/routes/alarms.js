@@ -7,6 +7,9 @@ const router = express.Router();
 // Sync allows optional authentication (public users can also sync with date range)
 router.post('/sync', optionalAuthMiddleware, alarmController.syncAlarms);
 
+// Check OPEN alarms status (admin/monitor only)
+router.post('/check-open', authMiddleware, monitorMiddleware, alarmController.checkOpenAlarms);
+
 // GET endpoints allow public access (no auth required)
 // Important: Specific routes must come before parameterized routes
 router.get('/filters/date', optionalAuthMiddleware, alarmController.getDateFilters);
